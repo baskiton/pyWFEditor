@@ -1,8 +1,8 @@
 import io
 
-import wx
-
 from typing import BinaryIO
+
+import wx
 
 from . import elements, errors
 from .. import utils
@@ -10,20 +10,57 @@ from .wfimage import WFImage
 from .wfparameter import WFParameter
 
 
-class WatchFace:
-    WF_VER = {
-        b'HMDIAL\x00': 4,
-        b'UIHH\x01\x00\xFF': -1
+class WFHeader:
+    H_SIGN = b'HMDIAL\x00'
+    U_SIGN = b'UIHH'
+    SIGN_LEN = {
+        b'H': len(H_SIGN),
+        b'U': len(U_SIGN),
     }
-    HDR_LEN = {
-        -1: 87,
-        4: 40,
-        5: 87,
-        6: 87,
+    VER_POS = {
+        H_SIGN: 0x0B,
+        U_SIGN: 0x04,
+    }
+    H_HDR_LEN = {
+        0xFF: 40,
+        0x06: 64,
     }
 
-    def __init__(self, version=None, hdr=None, main_param=None, elems=None, images=None, params=None):
-        self.version = version
+    def __init__(self, buf: BinaryIO):
+        self.unknown0 = self.unknown1 = self.hdr_params_size = self.device_id = self.version = -1
+
+        buf.seek(0)
+        s_len = self.SIGN_LEN.get(buf.read(1))
+        if s_len is None:
+            raise errors.WFFileFormatError()
+        buf.seek(0)
+        sign = buf.read(s_len)
+        if sign == self.H_SIGN:
+            self.hmdial_build(buf)
+        elif sign == self.U_SIGN:
+            self.uihh_build(buf)
+        else:
+            raise errors.WFFileFormatError()
+
+    def hmdial_build(self, buf):
+        buf.seek(self.VER_POS[self.H_SIGN])
+        self.version = utils.io2int(buf, 1)
+        hdr_len = self.H_HDR_LEN.get(self.version)
+        if not hdr_len:
+            raise errors.WFFileFormatError()
+        buf.seek(0x10)
+        self.device_id = utils.io2int(buf, 1)
+        buf.seek(hdr_len - 12)
+        self.unknown1 = utils.io2int(buf, 4, signed=True)
+        self.unknown0 = utils.io2int(buf, 4, signed=True)
+        self.hdr_params_size = utils.io2int(buf, 4, signed=True)
+
+    def uihh_build(self, buf):
+        raise NotImplementedError()
+
+
+class WatchFace:
+    def __init__(self, hdr=None, main_param=None, elems=None, images=None, params=None):
         self.hdr = hdr
         self.main_param = main_param
         self.elements = elems
@@ -33,38 +70,35 @@ class WatchFace:
     @classmethod
     def from_file(cls, fn):
         wx.LogMessage(f'Reading {fn}')
-        with open(fn, 'rb') as f:
-            f.seek(0, io.SEEK_END)
-            fsz = f.tell()
-            f.seek(0, io.SEEK_SET)
 
-            ver = cls.WF_VER.get(f.read(7))
-            if ver is None:
-                raise errors.WFFileFormatError()
-            hdr_sz = cls.HDR_LEN.get(ver)
+        f = open(fn, 'rb')
+        f.seek(0, io.SEEK_END)
+        fsz = f.tell()
+        f.seek(0, io.SEEK_SET)
 
-            f.seek(0)
-            hdr = f.read(hdr_sz)
-            if ver == -1:
-                pass
-            hdr_params_size = utils.b2i(hdr[-4:])
-            hdr_params = io.BytesIO(f.read(hdr_params_size))
+        if utils.io2int(f, 1) == 0x4F:   # qlz packed
+            f = io.BytesIO(utils.quicklz.qlz_stream_decompress(f))
+            wx.LogDebug('file compressed. Decompress OK')
 
-            main_param = elements.MainParams(WFParameter.read_one(hdr_params).get(1))
-            elems = {1: main_param}
+        hdr = WFHeader(f)
+        hdr_params = io.BytesIO(f.read(hdr.hdr_params_size))
 
-            param_loc = WFParameter.read_list(hdr_params, hdr_params_size)
-            params = io.BytesIO(f.read(main_param.table_len))
+        main_param = elements.MainParams(WFParameter.read_one(hdr_params).get(1))
+        elems = {1: main_param}
 
-            offsets = list(utils.io2int(f, 4) for _ in range(main_param.images_cnt))
-            offsets.sort()
-            offsets.append(fsz)
+        param_loc = WFParameter.read_list(hdr_params, hdr.hdr_params_size)
+        params = io.BytesIO(f.read(main_param.table_len))
 
-            images = cls._images_collect(f, offsets)
-            # elems.update(cls._elements_collect(params, param_loc))
-            p = cls._elements_collect(params, param_loc)
+        offsets = list(utils.io2int(f, 4) for _ in range(main_param.images_cnt))
+        offsets.sort()
+        offsets.append(fsz)
 
-        return cls(ver, hdr, main_param, elems, images, p)
+        # images = p = None
+        images = cls._images_collect(f, offsets)
+        # elems.update(cls._elements_collect(params, param_loc))
+        p = cls._elements_collect(params, param_loc)
+
+        return cls(hdr, main_param, elems, images, p)
 
     @staticmethod
     def _images_collect(f: BinaryIO, offsets: list):
@@ -81,8 +115,7 @@ class WatchFace:
                 res = img.gen_image(buf)
                 # res.SaveFile(f'0images/{img.name}.png')
             except Exception as e:
-                txt = f'Error in "{img.name}": {e}. Binary dumped. Store as bytes'
-                wx.LogWarning(txt)
+                wx.LogWarning(f'Error in "{img.name}": {e}. Binary dumped. Store as bytes')
                 with open(f'0dumped/{img.name}.bin', 'wb') as fi:
                     fi.write(buf)
                 res = buf

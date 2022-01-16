@@ -151,7 +151,7 @@ def qlz_decompress(buf: bytes) -> bytearray:
         return bytearray(buf[hdr_sz:hdr_sz + d_sz])
 
 
-def qlz_stream_decompress(z: io.BytesIO) -> bytes:
+def qlz_stream_decompress(z: [io.BytesIO, BinaryIO]) -> bytes:
     z.seek(0, io.SEEK_END)
     z_size = z.tell()
     z.seek(0, io.SEEK_SET)
