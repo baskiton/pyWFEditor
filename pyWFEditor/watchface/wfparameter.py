@@ -2,7 +2,7 @@ import io
 
 import wx
 
-from . import utils
+from .. import utils
 
 
 class WFParameter(dict):

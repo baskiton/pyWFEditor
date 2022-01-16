@@ -5,7 +5,8 @@ import wx
 
 from typing import BinaryIO
 
-from . import elements, errors, utils
+from . import elements, errors
+from .. import utils
 from .wfimage import WFImage
 from .wfparameter import WFParameter
 
