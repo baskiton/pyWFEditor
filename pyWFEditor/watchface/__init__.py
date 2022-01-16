@@ -1,5 +1,4 @@
 import io
-import os
 
 import wx
 
@@ -34,8 +33,11 @@ class WatchFace:
     @classmethod
     def from_file(cls, fn):
         wx.LogMessage(f'Reading {fn}')
-        fsz = os.stat(fn).st_size
         with open(fn, 'rb') as f:
+            f.seek(0, io.SEEK_END)
+            fsz = f.tell()
+            f.seek(0, io.SEEK_SET)
+
             ver = cls.WF_VER.get(f.read(7))
             if ver is None:
                 raise errors.WFFileFormatError()
@@ -50,8 +52,10 @@ class WatchFace:
 
             main_param = elements.MainParams(WFParameter.read_one(hdr_params).get(1))
             elems = {1: main_param}
+
             param_loc = WFParameter.read_list(hdr_params, hdr_params_size)
             params = io.BytesIO(f.read(main_param.table_len))
+
             offsets = list(utils.io2int(f, 4) for _ in range(main_param.images_cnt))
             offsets.sort()
             offsets.append(fsz)
@@ -72,18 +76,21 @@ class WatchFace:
             sign = buf[:2]
             if sign != b'BM':
                 raise errors.WFImageFormatError(sign)
+            img = WFImage(name=f'{i:03}')
             try:
-                res = WFImage.from_bytes(buf)
-                # res.img.save(f'images/{i}.png')
+                res = img.gen_image(buf)
+                # res.SaveFile(f'0images/{img.name}.png')
             except Exception as e:
-                wx.LogWarning(f'{e}. Save as bytes')
+                txt = f'Error in "{img.name}": {e}. Binary dumped. Store as bytes'
+                wx.LogWarning(txt)
+                with open(f'0dumped/{img.name}.bin', 'wb') as fi:
+                    fi.write(buf)
                 res = buf
             result.append(res)
         return result
 
     @staticmethod
     def _elements_collect(params: io.BytesIO, params_loc: WFParameter):
-        # result = {}
         result = WFParameter()
         for pid, loc in params_loc.items():
             loff = loc[1]

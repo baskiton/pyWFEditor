@@ -41,7 +41,7 @@ class WFParameter(dict):
             while buf.tell() < size:
                 res.update(cls.read_one(buf))
         except ValueError as e:
-            wx.LogWarning(str(e))
+            wx.LogWarning(str(e) + f' in {buf.tell()}')
         if not res:
             raise ValueError('Empty child')
         return res

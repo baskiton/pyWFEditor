@@ -13,7 +13,6 @@ from .. import static, utils, watchface
 class WFMainFrame(ui.MainFrame):
     def __init__(self):
         super().__init__(None)
-        # self.SetMinSize(())
         self.logger = utils.Logging(f'{static.ST_PKG_NAME}.log')
 
         self.filehistory = wx.FileHistory(5)
@@ -33,11 +32,16 @@ class WFMainFrame(ui.MainFrame):
 
         self.list_images = wx.adv.EditableListBox(self.page_img_list, label='Images list', size=(200, -1),
                                                   style=wx.adv.EL_ALLOW_NEW | wx.adv.EL_ALLOW_DELETE)
+        self.list_images.Bind(wx.EVT_LIST_DELETE_ITEM, self.on_list_del)
+        self.list_images.Bind(wx.EVT_LIST_ITEM_FOCUSED, self.on_img_select)
+        self.list_images.GetNewButton().SetToolTip('Add new image')
         self.list_images.GetNewButton().Bind(wx.EVT_BUTTON, self.on_btn_img_add)
+        self.list_images.GetDelButton().SetToolTip('Delete image')
         self.sizer_img_list.Add(self.list_images, 1, wx.LEFT | wx.BOTTOM | wx.EXPAND, 1)
-        self.panel_img_list_view = wx.lib.imagebrowser.ImageView(self.page_img_list)
-        self.panel_img_list_view.SetSizeHints((200, 200), (200, 200))
-        self.sizer_img_list.Add(self.panel_img_list_view, 1, wx.ALL | wx.EXPAND, 5)
+
+        self.panel_img_list_view = wx.lib.imagebrowser.ImagePanel(self.page_img_list)
+        self.panel_img_list_view.SetBackgroundMode(wx.lib.imagebrowser.ID_GREY_BG)
+        self.sizer_img_list.Add(self.panel_img_list_view, 0, wx.ALL | wx.EXPAND, 5)
 
         self.cat_background = wfp.WFPBackground(self.page_options)
         self.cat_time = wfp.WFPTime(self.page_options)
@@ -67,10 +71,6 @@ class WFMainFrame(ui.MainFrame):
             13: self.cat_animation,
         }
 
-        self.list_images.Bind(wx.EVT_LIST_INSERT_ITEM, self.on_list_insert)
-        self.list_images.Bind(wx.EVT_LIST_DELETE_ITEM, self.on_list_del)
-        self.list_images.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_list_order)
-
         wx.LogMessage('The program is running')
 
     def on_close(self, event):
@@ -88,31 +88,18 @@ class WFMainFrame(ui.MainFrame):
 
     def on_file_history(self, evt: wx.Event):
         n = evt.GetId() - wx.ID_FILE1
-        print(f'on_file_history n {n}')
         self.curr_file = self.filehistory.GetHistoryFile(n)
-        print(f'on_file_history path {self.curr_file}')
         self.filehistory.AddFileToHistory(self.curr_file)
 
         self._wf_open()
 
-    def on_list_insert(self, evt: wx.ListEvent):
-        txt = evt.GetText()
-        if txt == '':
-            return
-        self.items_images[txt] = evt.GetIndex()
-
     def on_list_del(self, evt: wx.ListEvent):
-        self.items_images.pop(evt.GetText(), None)
+        self.items_images.pop(evt.GetItem().GetData(), None)
 
-    def on_list_order(self, evt: wx.ListEvent):
-        itm = evt.GetText()
-        idx_new = evt.GetIndex()
-        idx_old = self.items_images.get(itm, idx_new)
-        diff = idx_new - idx_old
-        if not diff:
-            return
-        self.items_images[itm] = idx_new
-        self.items_images[self.list_images.GetListCtrl().GetItemText(idx_new - diff)] = idx_old
+    def on_img_select(self, evt: wx.ListEvent):
+        # TODO: draw image here
+        self.panel_img_list_view.view.image = wx.Image(self.items_images[evt.GetItem().GetData()].path)
+        self.panel_img_list_view.view.Refresh()
 
     def on_btn_img_add(self, event):
         dlg = wx.FileDialog(
@@ -124,9 +111,17 @@ class WFMainFrame(ui.MainFrame):
         if dlg.ShowModal() == wx.ID_CANCEL:
             return
 
-        old_s = dict.fromkeys(self.list_images.GetStrings())
-        old_s.update(dict.fromkeys(dlg.GetPaths()))
-        self.list_images.SetStrings(list(old_s))
+        lc: wx.ListCtrl = self.list_images.GetListCtrl()
+        for p in dlg.GetPaths():
+            i = watchface.WFImage(p)
+            if i.id in self.items_images:
+                continue
+            self.items_images[i.id] = i
+            it = wx.ListItem()
+            it.SetText(i.name)
+            it.SetData(i.id)
+            it.SetId(lc.GetItemCount() - 1)
+            lc.InsertItem(it)
 
     def wf_create(self, event: wx.Event):
         event.Skip()
@@ -163,7 +158,7 @@ class WFMainFrame(ui.MainFrame):
         self.curr_file = None
         self._state_change(False)
 
-    def redraw(self, event):
+    def redraw(self, evt: wx.PaintEvent):
         # dc = wx.WindowDC(self)
         # dc = wx.PaintDC(self)
         # for bm in [wx.Bitmap(wx.Image(static.PREV_TEST)), wx.Bitmap(wx.Image(static.PREV_TEST_8))]:

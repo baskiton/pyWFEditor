@@ -72,10 +72,11 @@ class WFPImageListCtrl(wx.ListCtrl):
 
 
 class WFPImgSelectDialog(ImgSelectDialog):
-    def __init__(self, parent, selected, multiple_select=False):
+    def __init__(self, parent, selected: list, multiple_select=False):
         super().__init__(parent)
 
         self.list_img_list = WFPImageListCtrl(self, multiple_select)
+        self.list_img_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_img_select)
         if self.list_img_list.HasCheckBoxes():
             for name in selected:
                 i = self.list_img_list.images.get(name)
@@ -85,11 +86,12 @@ class WFPImgSelectDialog(ImgSelectDialog):
             i = self.list_img_list.images.get(selected[0])
             if i is not None:
                 self.list_img_list.Select(i, True)
-        self.sizer_main.Add(self.list_img_list, (0, 0), (2, 1), wx.ALL | wx.EXPAND, 5)
+        self.sizer_main.Add(self.list_img_list, (0, 0), (2, 1), wx.LEFT | wx.TOP | wx.BOTTOM | wx.EXPAND, 5)
 
-        self.view_panel = wx.lib.imagebrowser.ImageView(self)
-        self.view_panel.SetSizeHints((200, 200), (200, 200))
-        self.sizer_main.Add(self.view_panel, (0, 1), (1, 1), wx.ALL | wx.ALIGN_RIGHT, 5)
+        self.view_panel = wx.lib.imagebrowser.ImagePanel(self)
+        self.view_panel.SetBackgroundMode(wx.lib.imagebrowser.ID_GREY_BG)
+        self.sizer_main.Add(self.view_panel, (0, 1), (3, 1), wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, 5)
+        self.view_panel.Layout()
 
         self.sizer_btnsNo.SetLabel('Clear')
 
@@ -104,6 +106,11 @@ class WFPImgSelectDialog(ImgSelectDialog):
         else:
             for i in self.list_img_list.get_selected():
                 self.list_img_list.Select(i, False)
+
+    def on_img_select(self, evt: wx.ListEvent):
+        # TODO: draw image gere
+        self.view_panel.view.image = wx.Image(self.list_img_list.GetItemText(evt.GetIndex()))
+        self.view_panel.view.Refresh()
 
     def get_selected(self):
         return (name for i in self.list_img_list.get_selected()
@@ -131,7 +138,7 @@ class WFPImage(WFProperty):
 
         self.Add(sz_sel, 1, wx.EXPAND)
 
-    def on_btn_select(self, evt):
+    def on_btn_select(self, evt: wx.Event):
         dlg = WFPImgSelectDialog(self.sbox, self.selected, self.multiple_select)
 
         if dlg.ShowModal() == wx.ID_OK:

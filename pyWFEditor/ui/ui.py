@@ -256,7 +256,7 @@ class ImgSelectDialog ( wx.Dialog ):
         sizer_main.SetFlexibleDirection( wx.BOTH )
         sizer_main.SetNonFlexibleGrowMode( wx.FLEX_GROWMODE_SPECIFIED )
 
-        sizer_main.SetMinSize( wx.Size( -1,250 ) )
+        sizer_main.SetMinSize( wx.Size( -1,300 ) )
         sizer_btns = wx.StdDialogButtonSizer()
         self.sizer_btnsOK = wx.Button( self, wx.ID_OK )
         sizer_btns.AddButton( self.sizer_btnsOK )
