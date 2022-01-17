@@ -10,6 +10,7 @@ __all__ = (
 import io
 
 from typing import BinaryIO
+from . import b2i, io2int
 
 
 # QLZ_COMPRESSION_LEVEL = 3
@@ -23,19 +24,8 @@ UNCOMPRESSED_END = 4
 CWORD_LEN = 4
 
 
-def _b2i(buf: bytes, order='little', signed=False):
-    return int.from_bytes(buf, order, signed=signed)
-
-
-def _io2int(b: [io.BytesIO, BinaryIO], sz, order='little', signed=False):
-    v = b.read(sz)
-    if not v:
-        raise EOFError
-    return _b2i(v, order, signed)
-
-
 def _qlz_fast_read(buf: bytes, start: int, size: int) -> int:
-    return _b2i(buf[start:start + size])
+    return b2i(buf[start:start + size])
 
 
 def _qlz_get_n(i: int) -> int:
@@ -166,10 +156,10 @@ def qlz_stream_decompress(z: [io.BytesIO, BinaryIO]) -> bytes:
         if z_size < compress_size + 9:
             break
         state = z.tell()
-        flag = _io2int(z, 1) # must be 0x4F ?
-        compressed_len = _io2int(z, 2)
+        flag = io2int(z, 1) # must be 0x4F ?
+        compressed_len = io2int(z, 2)
         z.read(2)
-        decompressed_len = _io2int(z, 2)
+        decompressed_len = io2int(z, 2)
         z.read(2)
         z.seek(state)
         data = z.read(compressed_len)

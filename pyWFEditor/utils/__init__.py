@@ -2,7 +2,6 @@ import io
 from typing import BinaryIO
 
 from .logging import Logging
-from . import quicklz
 
 
 __all__ = (
