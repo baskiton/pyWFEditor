@@ -8,8 +8,11 @@ class WFError(Exception):
 
 
 class WFFileUnsupportedFormat(WFError):
-    def __init__(self):
-        super().__init__(f'Unsupported Watchface file')
+    def __init__(self, msg=''):
+        txt = 'Unsupported Watchface file'
+        if msg:
+            txt += f': {msg}'
+        super().__init__(txt)
 
 
 class WFFileFormatError(WFError):

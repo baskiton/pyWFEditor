@@ -13,7 +13,8 @@ from typing import BinaryIO
 from . import b2i, io2int
 
 
-# QLZ_COMPRESSION_LEVEL = 3
+QLZ_STREAMING_BUFFER = 0
+QLZ_COMPRESSION_LEVEL = 3
 # if QLZ_COMPRESSION_LEVEL == 3:
 #     QLZ_POINTERS = 16
 #     QLZ_HASH_VALUES = 4096
@@ -162,14 +163,13 @@ def qlz_stream_decompress(z: [io.BytesIO, BinaryIO]) -> bytes:
         decompressed_len = io2int(z, 2)
         z.read(2)
         z.seek(state)
-        data = z.read(compressed_len)
 
         if decompressed_len == 4096:
-            decompressed.extend(qlz_decompress(data))
+            decompressed.extend(qlz_decompress(z.read(compressed_len)))
             compress_size += compressed_len
             decompress_size += 4096
         else:
-            decompressed.extend(data[:z_size - compress_size])
+            decompressed.extend(z.read(z_size - compress_size))
             decompress_size += z_size - compress_size
             compress_size = z_size
     return bytes(decompressed)

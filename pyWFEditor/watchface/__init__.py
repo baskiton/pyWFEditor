@@ -69,19 +69,18 @@ class WFHeader:
         self.device_id = utils.io2int(buf, 1)
         buf.seek(hdr_len - 12)
         self.unknown1 = utils.io2int(buf, 4, signed=True)
-        self.unknown0 = utils.io2int(buf, 4, signed=True)
         self.hdr_params_size = utils.io2int(buf, 4, signed=True)
+        self.unknown0 = utils.io2int(buf, 4, signed=True)
 
     def uihh_build(self, buf):
         buf.seek(self.VER_POS[self.U_SIGN])
         self.version = utils.io2int(buf, 2)
         if self.version == self.U_VER_COMPRESS:
-            raise errors.WFFileUnsupportedFormat()
-            # buf.seek(0)
-            # buf.seek(self.U_COMPRESS_START)
-            # unc = quicklz.qlz_stream_decompress(io.BytesIO(buf.read()))
-            # buf.seek(self.U_COMPRESS_START)
-            # buf.write(unc)
+            buf.seek(0)
+            buf.seek(self.U_COMPRESS_START)
+            unc = quicklz.qlz_stream_decompress(io.BytesIO(buf.read()))
+            buf.seek(self.U_COMPRESS_START)
+            buf.write(unc)
 
         # TODO: find device id
         buf.seek(self.U_HDR_LEN - 12)
@@ -112,6 +111,8 @@ class WatchFace:
         hdr_params = io.BytesIO(f.read(hdr.hdr_params_size))
 
         main_param = elements.MainParams(WFParameter.read_one(hdr_params).get(1))
+        wx.LogDebug(str(main_param))
+        wx.LogDebug(f'hdr_params_size={hdr.hdr_params_size}')
         elems = {1: main_param}
 
         param_loc = WFParameter.read_list(hdr_params, hdr.hdr_params_size)
@@ -134,8 +135,6 @@ class WatchFace:
         # offsets.sort()
         offsets.append(fsz)
 
-        wx.LogDebug(str(main_param))
-        wx.LogDebug(str(hdr.hdr_params_size))
         _s = io.StringIO()
         pprint.pprint(param_loc, width=3, stream=_s)
         wx.LogDebug('\n' + _s.getvalue())
